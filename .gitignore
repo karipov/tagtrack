@@ -5,6 +5,7 @@
 # Config
 src/config/*
 !src/config/__init__.py
+!src/config/*.example
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

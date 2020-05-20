@@ -1,0 +1,30 @@
+{
+    "TRELLO_API_KEY": "...",
+    "TRELLO_API_TOKEN": "...",
+
+    "TG_API_ID": ...,
+    "TG_API_HASH": "...",
+    "BOT_TOKEN": "...",
+    "BOT_SESSION": "src/config/bot",
+
+    "DEVS": [... <Telegram User IDs>],
+    "CHATS": [... <Telegram Chat IDs>],
+
+    "TAGS": [
+        "#bug", "#visual", "#feature", "#suggestion"
+    ],
+
+    "B&V": {
+        "_id": "... <Board IDs>",
+        // following are list name and list ID pairs
+        "bugs": "...",
+        "visual": "...",
+        "completed": "..."
+    },
+    "FRQ": {
+        "_id": "...<Board IDs>",
+        // following are list name and list ID pairs
+        "requests": "...",
+        "completed": "..."
+    }
+}
