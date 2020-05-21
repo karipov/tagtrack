@@ -17,13 +17,18 @@ BASE_PARAMS = {
 #         return await resp.json()
 
 
-async def new_card(list_id: str, message):
-    name, desc = message.text[:20] + '...', message.text
+async def new_card(
+    list_id: str,
+    name: str,
+    desc: str,
+    url_source: str
+):
     params = {
         'name': name,
         'desc': desc,
         'pos': 'top',
         'idList': list_id,
+        'urlSource': url_source
     }
     params.update(BASE_PARAMS)
 
