@@ -10,6 +10,7 @@ flake8 = "*"
 telethon = "*"
 cryptg = "*"
 aiohttp = "*"
+peewee = "*"
 
 [requires]
 python_version = "3.7"
