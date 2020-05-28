@@ -16,22 +16,45 @@ BASE_PARAMS = {
 #     ) as resp:
 #         return await resp.json()
 
+class TrelloAPI:
+    def __init__(self):
+        self.session = aiohttp.ClientSession()
 
-async def new_card(
-    list_id: str,
-    name: str,
-    desc: str,
-    url_source: str
-):
-    params = {
-        'name': name,
-        'desc': desc,
-        'pos': 'top',
-        'idList': list_id,
-        'urlSource': url_source
-    }
-    params.update(BASE_PARAMS)
+    async def new_card(
+        self,
+        list_id: str,
+        name: str,
+        desc: str,
+        url_source: str
+    ):
+        """
+        Creates a new trello card
+        """
+        params = {
+            'name': name,
+            'desc': desc,
+            'pos': 'top',
+            'idList': list_id,
+            'urlSource': url_source
+        }
+        params.update(BASE_PARAMS)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(f"{BASE_URL}/cards", params=params) as resp:
-            return await resp.json()
+        async with self.session.post(f"{BASE_URL}/cards", params=params) as r:
+            return await r.json()
+
+    async def move_card(self, card_id: str, to_list_id: str):
+        params = {
+            'idList': to_list_id
+        }
+        params.update(BASE_PARAMS)
+
+        async with self.session.put(
+            f"{BASE_URL}/cards/{card_id}", params=params
+        ) as r:
+            return await r.json()
+
+    async def attach_card(self, card_id: str, iter_attachment):
+        async with self.session.post(
+            f"{BASE_URL}/cards/{card_id}/attachements"
+        ) as _:
+            pass
