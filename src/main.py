@@ -1,12 +1,12 @@
-import re
 import logging
 
 from telethon import TelegramClient, events
 from telethon.utils import get_peer_id
-from telethon.tl.types import MessageEntityHashtag
 
 from config import CONFIG
 from ui import REPLIES
+from util import check_tags, escape_markdown, extract_version
+from models import Tags
 import trello
 
 
@@ -21,6 +21,8 @@ bot = TelegramClient(
     CONFIG['TG_API_HASH']
 ).start(bot_token=CONFIG['BOT_TOKEN'])
 
+boards = trello.TrelloAPI()
+
 TAG_TO_BOARD = {
     '#bug': CONFIG['B&V']['bugs'],
     '#visual': CONFIG['B&V']['visual'],
@@ -28,60 +30,77 @@ TAG_TO_BOARD = {
     '#suggestion': CONFIG['FRQ']['requests']
 }
 
-
-def check_tags():
-    """
-    Returns a filter function that checks if a certain tag is in a new event
-    """
-    return lambda event: any([tag in [
-        text for _, text in event.get_entities_text(MessageEntityHashtag)
-    ] for tag in CONFIG['TAGS']])
+TAG_TO_BOARD_FIX = {
+    '#bug': CONFIG['B&V']['completed'],
+    '#visual': CONFIG['B&V']['completed'],
+    '#feature': CONFIG['FRQ']['completed'],
+    '#suggestion': CONFIG['FRQ']['completed']
+}
 
 
-def escape_markdown(unescaped: str) -> str:
-    """
-    Utility function to escape markdown.
-    """
-    to_escape = ['*', '~', '>', '[', ']', '(', ')', '`', '=', '#', '-', '.']
-    escaped, chars = [], list(unescaped)
-
-    for char in chars:
-        if char in to_escape:
-            escaped.append('\\' + char)
+@bot.on(events.Album(chats=CONFIG['CHATS']))
+async def album_process(event):
+    for message in event.messages:
+        if not check_tags()(message):
+            continue
         else:
-            escaped.append(char)
+            msg_caption = message
+            break
 
-    return ''.join(escaped)
+    version = extract_version(msg_caption.raw_text)
+    first_tag = [text for _, text in msg_caption.get_entities_text()][0]
+    text = msg_caption.text.replace(first_tag, '').replace(version, '').strip()
+    chat_id = get_peer_id(event.to_id, add_mark=False)
+
+    response = await boards.new_card(
+        list_id=TAG_TO_BOARD[first_tag],
+        name=text[:30] + '...',
+        desc=REPLIES['DESC'].format(escape_markdown(text), version),
+        url_source=f'https://t.me/c/{chat_id}/{event.id}'
+    )
+
+    bot_reply = await event.reply(
+        REPLIES['LINK'].format(response['shortUrl'])
+    )
+
+    Tags.create(
+        chat_id=event.chat_id,
+        message_id=event.id,
+        reply_message_id=bot_reply.id,
+        card_id=response['id'],
+        short_url=response['shortUrl']
+    )
 
 
 @bot.on(events.NewMessage(func=check_tags(), chats=CONFIG['CHATS']))
 async def process(event):
+    version = extract_version(event.raw_text)
     first_tag = [text for _, text in event.get_entities_text()][0]
-
-    try:
-        version = re.search(r'[\d+\.]+ \(\d+\) Beta', event.raw_text).group(0)
-    except AttributeError:  # if version not found
-        version = REPLIES['VER_NA']
-
-    text = event.text.replace(first_tag, '').replace(version, '')
-
+    text = event.text.replace(first_tag, '').replace(version, '').strip()
     chat_id = get_peer_id(event.to_id, add_mark=False)
-    card_name = text[:30] + '...'
-    card_desc = REPLIES['DESC'].format(
-        escape_markdown(text), version
-    )
 
-    response = await trello.new_card(
+    response = await boards.new_card(
         list_id=TAG_TO_BOARD[first_tag],
-        name=card_name,
-        desc=card_desc,
+        name=text[:30] + '...',
+        desc=REPLIES['DESC'].format(
+            escape_markdown(text), version
+        ),
         url_source=f'https://t.me/c/{chat_id}/{event.id}'
     )
 
-    logging.warn(response)
+    bot_reply = await event.reply(
+        REPLIES['LINK'].format(response['shortUrl'])
+    )
 
-    await event.reply(
-        response['shortUrl']
+    if event.media:
+        _ = event.client.iter_download(event.media)
+
+    Tags.create(
+        chat_id=event.chat_id,
+        message_id=event.id,
+        reply_message_id=bot_reply.id,
+        card_id=response['id'],
+        short_url=response['shortUrl']
     )
 
 
@@ -89,7 +108,26 @@ async def process(event):
     func=lambda e: e.is_reply, pattern=r'fix', from_users=CONFIG['DEVS']
 ))
 async def fix(event):
-    logging.warn("fixed issue")
+    try:
+        tag = Tags.get(
+            Tags.chat_id == event.chat_id,
+            Tags.message_id == event.reply_to_msg_id
+        )
+    except Exception:
+        return
+
+    first_tag = [text for _, text in (
+        await event.get_reply_message()
+    ).get_entities_text()][0]
+
+    await event.client.edit_message(
+        tag.chat_id,
+        tag.reply_message_id,
+        REPLIES['LINK_FIX'].format(tag.short_url)
+    )
+
+    await boards.move_card(tag.card_id, TAG_TO_BOARD_FIX[first_tag])
 
 
+# RUN THE BOT ON POLLING
 bot.run_until_disconnected()
