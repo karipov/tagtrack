@@ -1,19 +1,25 @@
 import logging
 
 from telethon import TelegramClient, events
-from telethon.utils import get_peer_id
+import colorlog
 
 from config import CONFIG
-from ui import REPLIES
-from util import check_tags, escape_markdown, extract_version
 from models import Tags
 import trello
+import util
 
 
-logging.basicConfig(
-    format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
-    level=logging.WARNING
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+formatter = colorlog.ColoredFormatter(
+    '%(log_color)s%(asctime)s - %(name)s - %(message)s'
 )
+
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+console.setFormatter(formatter)
+
+logger.addHandler(console)
 
 bot = TelegramClient(
     CONFIG['BOT_SESSION'],
@@ -23,84 +29,70 @@ bot = TelegramClient(
 
 boards = trello.TrelloAPI()
 
-TAG_TO_BOARD = {
-    '#bug': CONFIG['B&V']['bugs'],
-    '#visual': CONFIG['B&V']['visual'],
-    '#feature': CONFIG['FRQ']['requests'],
-    '#suggestion': CONFIG['FRQ']['requests']
-}
-
-TAG_TO_BOARD_FIX = {
-    '#bug': CONFIG['B&V']['completed'],
-    '#visual': CONFIG['B&V']['completed'],
-    '#feature': CONFIG['FRQ']['completed'],
-    '#suggestion': CONFIG['FRQ']['completed']
-}
-
 
 @bot.on(events.Album(chats=CONFIG['CHATS']))
 async def album_process(event):
+    msg_caption = None
+
     for message in event.messages:
-        if not check_tags()(message):
+        if not util.check_tags(message):
             continue
         else:
             msg_caption = message
             break
 
-    version = extract_version(msg_caption.raw_text)
-    first_tag = [text for _, text in msg_caption.get_entities_text()][0]
-    text = msg_caption.text.replace(first_tag, '').replace(version, '').strip()
-    chat_id = get_peer_id(event.to_id, add_mark=False)
+    if not msg_caption:
+        return
 
-    response = await boards.new_card(
-        list_id=TAG_TO_BOARD[first_tag],
-        name=text[:30] + '...',
-        desc=REPLIES['DESC'].format(escape_markdown(text), version),
-        url_source=f'https://t.me/c/{chat_id}/{event.id}'
-    )
+    response = await boards.new_card(**util.extract_card_info(msg_caption))
 
-    bot_reply = await event.reply(
-        REPLIES['LINK'].format(response['shortUrl'])
-    )
-
-    Tags.create(
+    Tags(
         chat_id=event.chat_id,
-        message_id=event.id,
-        reply_message_id=bot_reply.id,
+        message_id=msg_caption.id,
         card_id=response['id'],
         short_url=response['shortUrl']
-    )
+    ).save()
+
+    for message in event.messages:
+        if not util.check_media(message):
+            return
+
+        stream = await message.download_media(file=bytes)
+
+        await boards.attach_card(
+            response['id'],
+            stream,
+            str(message.id) + message.file.ext,
+            message.file.mime_type
+        )
 
 
-@bot.on(events.NewMessage(func=check_tags(), chats=CONFIG['CHATS']))
+@bot.on(events.NewMessage(
+    func=lambda e: util.check_tags(e) and not e.grouped_id,
+    chats=CONFIG['CHATS']
+))
 async def process(event):
-    version = extract_version(event.raw_text)
-    first_tag = [text for _, text in event.get_entities_text()][0]
-    text = event.text.replace(first_tag, '').replace(version, '').strip()
-    chat_id = get_peer_id(event.to_id, add_mark=False)
+    response = await boards.new_card(**util.extract_card_info(event))
 
-    response = await boards.new_card(
-        list_id=TAG_TO_BOARD[first_tag],
-        name=text[:30] + '...',
-        desc=REPLIES['DESC'].format(
-            escape_markdown(text), version
-        ),
-        url_source=f'https://t.me/c/{chat_id}/{event.id}'
-    )
-
-    bot_reply = await event.reply(
-        REPLIES['LINK'].format(response['shortUrl'])
-    )
-
-    if event.media:
-        _ = event.client.iter_download(event.media)
-
-    Tags.create(
+    Tags(
         chat_id=event.chat_id,
         message_id=event.id,
-        reply_message_id=bot_reply.id,
         card_id=response['id'],
         short_url=response['shortUrl']
+    ).save()
+
+    if not util.check_media(event):
+        return
+
+    stream = await event.download_media(file=bytes)
+
+    logger.warning(event.file.mime_type)
+
+    await boards.attach_card(
+        response['id'],
+        stream,
+        str(event.id) + event.file.ext,
+        event.file.mime_type
     )
 
 
@@ -120,13 +112,7 @@ async def fix(event):
         await event.get_reply_message()
     ).get_entities_text()][0]
 
-    await event.client.edit_message(
-        tag.chat_id,
-        tag.reply_message_id,
-        REPLIES['LINK_FIX'].format(tag.short_url)
-    )
-
-    await boards.move_card(tag.card_id, TAG_TO_BOARD_FIX[first_tag])
+    await boards.move_card(tag.card_id, util.TAG_TO_BOARD_FIX[first_tag])
 
 
 # RUN THE BOT ON POLLING
