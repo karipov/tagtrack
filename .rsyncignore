@@ -3,9 +3,10 @@
 *.DS_Store
 
 # Config
-src/config/*
-!src/config/__init__.py
-!src/config/config.json
+src/config/bot.session
+src/config/bot.session-journal
+src/config/config.json.example
+src/config/tags.db
 logs/*
 
 # Byte-compiled / optimized / DLL files
