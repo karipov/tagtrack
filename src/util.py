@@ -36,7 +36,9 @@ def extract_version(text: str):
 
 def extract_card_info(message) -> dict:
     version = extract_version(message.raw_text)
-    first_tag = [text for _, text in message.get_entities_text()][0]
+    first_tag = [
+        text for _, text in message.get_entities_text(MessageEntityHashtag)
+    ][0]
     text = message.text.replace(first_tag, '').replace(version, '').strip()
     chat_id = get_peer_id(message.chat_id, add_mark=False)
 
