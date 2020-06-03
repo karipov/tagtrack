@@ -11,6 +11,7 @@ telethon = "*"
 cryptg = "*"
 aiohttp = "*"
 peewee = "*"
+colorlog = "*"
 
 [requires]
 python_version = "3.7"
