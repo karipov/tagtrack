@@ -48,13 +48,19 @@ class TrelloAPI:
         }
         params.update(BASE_PARAMS)
 
-        async with self.session.put(
+        await self.session.put(
             f"{BASE_URL}/cards/{card_id}", params=params
-        ) as r:
-            return await r.json()
+        )
 
-    async def attach_card(self, card_id: str, iter_attachment):
-        async with self.session.post(
-            f"{BASE_URL}/cards/{card_id}/attachements"
-        ) as _:
-            pass
+    async def attach_card(self, card_id: str, file_bytes, file_name, mime):
+        data = {'file': file_bytes}
+        headers = {"Accept": "application/json"}
+        params = {'name': file_name, 'mimeType': mime}
+        params.update(BASE_PARAMS)
+
+        await self.session.post(
+            f"{BASE_URL}/cards/{card_id}/attachments",
+            params=params,
+            data=data,
+            headers=headers
+        )
