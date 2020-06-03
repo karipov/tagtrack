@@ -10,6 +10,11 @@
     "DEVS": [... <Telegram User IDs>],
     "CHATS": [... <Telegram Chat IDs>],
 
+    "LOG": {
+        "DEBUG": "logs/debug.log",
+        "INFO": "logs/info.log"
+    },
+
     "TAGS": [
         "#bug", "#visual", "#feature", "#suggestion"
     ],

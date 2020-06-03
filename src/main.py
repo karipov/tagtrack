@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from telethon import TelegramClient, events
 import colorlog
@@ -9,6 +10,7 @@ import trello
 import util
 
 
+# LOGGING SETUP
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 formatter = colorlog.ColoredFormatter(
@@ -17,10 +19,20 @@ formatter = colorlog.ColoredFormatter(
 
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
-console.setFormatter(formatter)
 
-logger.addHandler(console)
+debug_file = logging.FileHandler(Path.cwd().joinpath(CONFIG['LOG']['DEBUG']))
+debug_file.setLevel(logging.DEBUG)
 
+info_file = logging.FileHandler(Path.cwd().joinpath(CONFIG['LOG']['INFO']))
+info_file.setLevel(logging.INFO)
+
+handlers = [console, debug_file, info_file]
+
+[x.setFormatter(formatter) for x in handlers]
+[logger.addHandler(x) for x in handlers]
+
+
+# OBJECTS SETUP
 bot = TelegramClient(
     CONFIG['BOT_SESSION'],
     CONFIG['TG_API_ID'],
@@ -30,6 +42,7 @@ bot = TelegramClient(
 boards = trello.TrelloAPI()
 
 
+# HANDLERS SETUP
 @bot.on(events.Album(chats=CONFIG['CHATS']))
 async def album_process(event):
     msg_caption = None
@@ -49,6 +62,7 @@ async def album_process(event):
     Tags(
         chat_id=event.chat_id,
         message_id=msg_caption.id,
+        user_id=event.from_user.id,
         card_id=response['id'],
         short_url=response['shortUrl']
     ).save()
@@ -77,6 +91,7 @@ async def process(event):
     Tags(
         chat_id=event.chat_id,
         message_id=event.id,
+        user_id=event.from_user.id,
         card_id=response['id'],
         short_url=response['shortUrl']
     ).save()
@@ -84,9 +99,11 @@ async def process(event):
     if not util.check_media(event):
         return
 
-    stream = await event.download_media(file=bytes)
+    logger.info(
+        f"{event.from_user.id} uploaded a new issue {response['shortUrl']}"
+    )
 
-    logger.warning(event.file.mime_type)
+    stream = await event.download_media(file=bytes)
 
     await boards.attach_card(
         response['id'],
@@ -107,6 +124,8 @@ async def fix(event):
         )
     except Exception:
         return
+
+    logger.info(f"{event.from_user.id} fixed issue {tag.short_url}")
 
     first_tag = [text for _, text in (
         await event.get_reply_message()
