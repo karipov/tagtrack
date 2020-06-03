@@ -22,7 +22,6 @@ db = SqliteDatabase(Path.cwd().joinpath('src/config/tags.db'))
 class Tags(Model):
     chat_id = IntegerField()
     message_id = IntegerField()
-    reply_message_id = IntegerField()
     card_id = TextField()
     short_url = TextField()
 
