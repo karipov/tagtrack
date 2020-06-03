@@ -62,7 +62,7 @@ async def album_process(event):
     Tags(
         chat_id=event.chat_id,
         message_id=msg_caption.id,
-        user_id=event.from_user.id,
+        user_id=event.from_id,
         card_id=response['id'],
         short_url=response['shortUrl']
     ).save()
@@ -91,7 +91,7 @@ async def process(event):
     Tags(
         chat_id=event.chat_id,
         message_id=event.id,
-        user_id=event.from_user.id,
+        user_id=event.from_id,
         card_id=response['id'],
         short_url=response['shortUrl']
     ).save()
@@ -100,7 +100,7 @@ async def process(event):
         return
 
     logger.info(
-        f"{event.from_user.id} uploaded a new issue {response['shortUrl']}"
+        f"{event.from_id} uploaded a new issue {response['shortUrl']}"
     )
 
     stream = await event.download_media(file=bytes)
@@ -125,7 +125,7 @@ async def fix(event):
     except Exception:
         return
 
-    logger.info(f"{event.from_user.id} fixed issue {tag.short_url}")
+    logger.info(f"{event.from_id} fixed issue {tag.short_url}")
 
     first_tag = [text for _, text in (
         await event.get_reply_message()
