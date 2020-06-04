@@ -10,15 +10,18 @@ BASE_PARAMS = {
 }
 
 
-# async def get_boards(session, url: str, params: dict):
-#     async with session.get(
-#         f"{url}/boards/{CONFIG['FRQ']['_id']}/lists", params=params
-#     ) as resp:
-#         return await resp.json()
-
 class TrelloAPI:
     def __init__(self):
         self.session = aiohttp.ClientSession()
+
+    async def _get_lists(self, board_id: str) -> dict:
+        params = {}
+        params.update(BASE_PARAMS)
+
+        async with self.session.post(
+            f"{BASE_URL}/boards/{board_id}/lists"
+        ) as r:
+            return await r.json()
 
     async def new_card(
         self,
