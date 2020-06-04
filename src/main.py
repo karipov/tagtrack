@@ -113,9 +113,7 @@ async def process(event):
     )
 
 
-@bot.on(events.NewMessage(
-    func=lambda e: e.is_reply, pattern=r'fix', from_users=CONFIG['DEVS']
-))
+@bot.on(events.NewMessage(func=lambda e: e.is_reply, from_users=CONFIG['DEV']))
 async def fix(event):
     try:
         tag = Tags.get(
@@ -125,13 +123,22 @@ async def fix(event):
     except Exception:
         return
 
-    logger.info(f"{event.from_id} fixed issue {tag.short_url}")
-
+    action = util.dev_action(event.raw_text)
     first_tag = [text for _, text in (
         await event.get_reply_message()
     ).get_entities_text()][0]
 
-    await boards.move_card(tag.card_id, util.TAG_TO_BOARD_FIX[first_tag])
+    logger.info(f"{event.from_id} responded to issue {tag.short_url}")
+
+    list_id = None
+    if action == 'fix':
+        list_id = util.TAG_TO_BOARD_FIX[first_tag]
+    elif action == 'reject':
+        list_id = util.TAG_TO_BOARD_REJ[first_tag]
+    else:
+        return
+
+    await boards.move_card(tag.card_id, list_id)
 
 
 # RUN THE BOT ON POLLING
