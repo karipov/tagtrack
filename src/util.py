@@ -21,6 +21,33 @@ TAG_TO_BOARD_FIX = {
     '#suggestion': CONFIG['FRQ']['completed']
 }
 
+TAG_TO_BOARD_REJ = {
+    '#bug': CONFIG['B&V']['rejected'],
+    '#visual': CONFIG['B&V']['rejected'],
+    '#feature': CONFIG['FRQ']['rejected'],
+    '#suggestion': CONFIG['FRQ']['rejected']
+}
+
+WORDS = {
+    'fix': ['fix', 'done', '👍'],
+    'reject': ['reject', 'not a bug', 'no']
+}
+
+
+def dev_action(text: str) -> str:
+    """
+    Developer action types: 'fix', 'reject', 'none'
+    """
+    for word in WORDS['fix']:
+        if word in text.lower():
+            return 'fix'
+
+    for word in WORDS['reject']:
+        if word in text.lower():
+            return 'reject'
+
+    return 'none'
+
 
 def extract_version(text: str):
     """
