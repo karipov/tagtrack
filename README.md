@@ -17,7 +17,7 @@ Tracks bugs and feature suggestion messages on trello boards. Currently operatio
 
 ### Sorting:
 1) `#bug` & `#visual` go to one trello board [e.g. [Bugs & Visual](https://trello.com/b/P4sepLgm/bugs-visual)]. Each tag has it's separate trello list.
-2) #suggestion & #feature go to a separate board [ e.g. [Feature Requests](https://trello.com/b/ag5JfYS7/feature-requests)].
+2) `#suggestion` & `#feature` go to a separate board [e.g. [Feature Requests](https://trello.com/b/ag5JfYS7/feature-requests)].
 
 
 ### Admins / Developers:
