@@ -54,19 +54,29 @@ def extract_version(text: str):
     Finds a semver telegram version from the text
     """
     try:
-        version = re.search(r'[\d+\.]+ \(\d+\) Beta', text).group(0)
+        version = re.search(r'[\d+\.]+ \(\d+\)', text).group(0)
     except AttributeError:  # if version not found
         version = REPLIES['VER_NA']
 
     return version
 
 
-def extract_card_info(message) -> dict:
-    version = extract_version(message.raw_text)
-    first_tag = [
+def extract_first_tag(message) -> str:
+    """
+    Assumes the tag exists.
+    """
+    return [
         text for _, text in message.get_entities_text(MessageEntityHashtag)
     ][0]
-    text = message.text.replace(first_tag, '').replace(version, '').strip()
+
+
+def extract_card_info(message) -> dict:
+    """
+    Extracts all the info needed for creating a card from a message
+    """
+    version = extract_version(message.raw_text)
+    first_tag = extract_first_tag(message)
+    text = message.raw_text.replace(first_tag, '').replace(version, '').strip()
     chat_id = get_peer_id(message.chat_id, add_mark=False)
 
     return {
@@ -89,6 +99,10 @@ def check_tags(message):
 
 
 def check_media(message):
+    """
+    Checks whether a message is eligible to have its attached media uploaded
+    to a trello card
+    """
     if not message.file:
         return False
 
