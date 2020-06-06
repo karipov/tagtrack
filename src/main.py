@@ -59,13 +59,18 @@ async def album_process(event):
 
     response = await boards.new_card(**util.extract_card_info(msg_caption))
 
-    Tags(
+    Tags.create(
         chat_id=event.chat_id,
         message_id=msg_caption.id,
         user_id=event.from_id,
         card_id=response['id'],
         short_url=response['shortUrl']
-    ).save()
+    )
+
+    logging.info(
+        f"{event.from_id} uploaded a new issue {response['shortUrl']} "
+        + "with Photo Album"
+    )
 
     for message in event.messages:
         if not util.check_media(message):
@@ -88,20 +93,20 @@ async def album_process(event):
 async def process(event):
     response = await boards.new_card(**util.extract_card_info(event))
 
-    Tags(
+    Tags.create(
         chat_id=event.chat_id,
         message_id=event.id,
         user_id=event.from_id,
         card_id=response['id'],
         short_url=response['shortUrl']
-    ).save()
+    )
+
+    logging.info(
+        f"{event.from_id} uploaded a new issue {response['shortUrl']}"
+    )
 
     if not util.check_media(event):
         return
-
-    logger.info(
-        f"{event.from_id} uploaded a new issue {response['shortUrl']}"
-    )
 
     stream = await event.download_media(file=bytes)
 
@@ -124,11 +129,9 @@ async def fix(event):
         return
 
     action = util.dev_action(event.raw_text)
-    first_tag = [text for _, text in (
-        await event.get_reply_message()
-    ).get_entities_text()][0]
+    first_tag = util.extract_first_tag(await event.get_reply_message())
 
-    logger.info(f"{event.from_id} responded to issue {tag.short_url}")
+    logging.info(f"{event.from_id} responded to issue {tag.short_url}")
 
     list_id = None
     if action == 'fix':
