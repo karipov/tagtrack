@@ -56,7 +56,9 @@ class TrelloAPI:
         )
 
     async def attach_card(self, card_id: str, file_bytes, file_name, mime):
-        data = {'file': file_bytes}
+        data = aiohttp.FormData()
+        data.add_field('file', file_bytes, filename=file_name, content_type=mime)
+
         headers = {"Accept": "application/json"}
         params = {'name': file_name, 'mimeType': mime}
         params.update(BASE_PARAMS)
