@@ -6,45 +6,18 @@ from telethon.utils import get_peer_id
 from config import CONFIG
 from ui import REPLIES
 
-
-TAG_TO_BOARD = {
-    '#bug': CONFIG['B&V']['bugs'],
-    '#visual': CONFIG['B&V']['visual'],
-    '#feature': CONFIG['FRQ']['requests'],
-    '#suggestion': CONFIG['FRQ']['requests']
-}
-
-TAG_TO_BOARD_FIX = {
-    '#bug': CONFIG['B&V']['completed'],
-    '#visual': CONFIG['B&V']['completed'],
-    '#feature': CONFIG['FRQ']['completed'],
-    '#suggestion': CONFIG['FRQ']['completed']
-}
-
-TAG_TO_BOARD_REJ = {
-    '#bug': CONFIG['B&V']['rejected'],
-    '#visual': CONFIG['B&V']['rejected'],
-    '#feature': CONFIG['FRQ']['rejected'],
-    '#suggestion': CONFIG['FRQ']['rejected']
-}
-
-WORDS = {
-    'fix': ['fix', 'done', '👍'],
-    'reject': ['reject', 'not a bug', 'no']
-}
-
-
 def dev_action(text: str) -> str:
     """
-    Developer action types: 'fix', 'reject', 'none'
+    Developer action types
     """
-    for word in WORDS['fix']:
-        if word in text.lower():
-            return 'fix'
+    if CONFIG["WORDS"]["reported"] in text.lower():
+        return 'reported'
 
-    for word in WORDS['reject']:
-        if word in text.lower():
-            return 'reject'
+    if CONFIG["WORDS"]["fixed"] in text.lower():
+        return 'fixed'
+    
+    if CONFIG["WORDS"]["rejected"] in text.lower():
+        return 'rejected'
 
     return 'none'
 
@@ -56,7 +29,7 @@ def extract_version(text: str):
     try:
         version = re.search(r'[\d+\.]+ \(\d+\)', text).group(0)
     except AttributeError:  # if version not found
-        version = REPLIES['VER_NA']
+        version = None
 
     return version
 
@@ -79,19 +52,24 @@ def extract_card_info(message) -> dict:
     text = message.raw_text.replace(first_tag, '').replace(version, '').strip()
     chat_id = get_peer_id(message.chat_id, add_mark=False)
 
-    return {
-        'list_id': TAG_TO_BOARD[first_tag],
-        'name': text[:30] + '...',
+    all_info = {
+        'list_id': CONFIG['BOARD']['new'],
+        'name': text[:40] + '...',
         'desc': REPLIES['DESC'].format(
             escape_markdown(text), version
         ),
         'url_source': f'https://t.me/c/{chat_id}/{message.id}'
     }
 
+    label = CONFIG['LABELS'].get(first_tag)
+
+    if label:
+        all_info['label_id'] = label
+
 
 def check_tags(message):
     """
-    Returns a filter function that checks if a certain tag is in a new message
+    Returns a function that checks if a certain tag is in a new message
     """
     return any([tag in [
         text for _, text in message.get_entities_text(MessageEntityHashtag)
