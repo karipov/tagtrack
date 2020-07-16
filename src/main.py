@@ -5,6 +5,7 @@ from telethon import TelegramClient, events
 import colorlog
 
 from config import CONFIG
+from ui import REPLIES
 from models import Tags
 import trello
 import util
@@ -42,7 +43,6 @@ bot = TelegramClient(
 boards = trello.TrelloAPI()
 
 
-# TODO: admit semver only messages
 @bot.on(events.Album(chats=CONFIG['CHATS']))
 async def album_process(event):
     msg_caption = None
@@ -57,20 +57,27 @@ async def album_process(event):
     if not msg_caption:
         return
 
+    if not util.extract_version(msg_caption.raw_text):
+        await event.reply(REPLIES['INCLUDE_VER'])
+        return
+
+    logging.info(util.extract_card_info(msg_caption))
     response = await boards.new_card(**util.extract_card_info(msg_caption))
 
     Tags.create(
         chat_id=event.chat_id,
         message_id=msg_caption.id,
-        user_id=event.from_id,
+        user_id=event.sender.id,
         card_id=response['id'],
         short_url=response['shortUrl']
     )
 
     logging.info(
-        f"{event.from_id} uploaded a new issue {response['shortUrl']} "
+        f"{event.sender.id} uploaded a new issue {response['shortUrl']} "
         + "with Photo Album"
     )
+
+    await msg_caption.reply(REPLIES['ACCEPTED'])
 
     for message in event.messages:
         if not util.check_media(message):
@@ -91,18 +98,22 @@ async def album_process(event):
     chats=CONFIG['CHATS']
 ))
 async def process(event):
+    if not util.extract_version(event.raw_text):
+        await event.reply(REPLIES['INCLUDE_VER'])
+        return
+
     response = await boards.new_card(**util.extract_card_info(event))
 
     Tags.create(
         chat_id=event.chat_id,
         message_id=event.id,
-        user_id=event.from_id,
+        user_id=event.sender.id,
         card_id=response['id'],
         short_url=response['shortUrl']
     )
 
     logging.info(
-        f"{event.from_id} uploaded a new issue {response['shortUrl']}"
+        f"{event.sender.id} uploaded a new issue {response['shortUrl']}"
     )
 
     if not util.check_media(event):
@@ -120,7 +131,7 @@ async def process(event):
 
 @bot.on(events.NewMessage(
     func=lambda e: e.is_reply,
-    from_users=CONFIG['ADMIN'],
+    from_users=CONFIG['ADMINS'],
     chats=CONFIG['CHATS']
 ))
 async def admin_action(event):
@@ -135,9 +146,9 @@ async def admin_action(event):
     action = util.dev_action(event.raw_text)
     first_tag = util.extract_first_tag(await event.get_reply_message())
 
-    logging.info(f"{event.from_id} responded to issue {tag.short_url}")
+    logging.info(f"{event.sender.id} responded to issue {tag.short_url}")
 
-    if action == 'none':
+    if not action:
         return
     
     list_id = CONFIG['BOARD'][action]
