@@ -42,7 +42,7 @@ bot = TelegramClient(
 boards = trello.TrelloAPI()
 
 
-# HANDLERS SETUP
+# TODO: admit semver only messages
 @bot.on(events.Album(chats=CONFIG['CHATS']))
 async def album_process(event):
     msg_caption = None
@@ -87,7 +87,7 @@ async def album_process(event):
 
 
 @bot.on(events.NewMessage(
-    func=lambda e: util.check_tags(e) and not e.grouped_id,
+    func=lambda e: util.check_tags(e) and not e.grouped_id,  # disregard album
     chats=CONFIG['CHATS']
 ))
 async def process(event):
@@ -118,28 +118,29 @@ async def process(event):
     )
 
 
-@bot.on(events.NewMessage(func=lambda e: e.is_reply, from_users=CONFIG['DEV']))
-async def fix(event):
+@bot.on(events.NewMessage(
+    func=lambda e: e.is_reply,
+    from_users=CONFIG['ADMIN'],
+    chats=CONFIG['CHATS']
+))
+async def admin_action(event):
     try:
         tag = Tags.get(
             Tags.chat_id == event.chat_id,
             Tags.message_id == event.reply_to_msg_id
         )
     except Exception:
-        return
+        return # if it's just a normal reply
 
     action = util.dev_action(event.raw_text)
     first_tag = util.extract_first_tag(await event.get_reply_message())
 
     logging.info(f"{event.from_id} responded to issue {tag.short_url}")
 
-    list_id = None
-    if action == 'fix':
-        list_id = util.TAG_TO_BOARD_FIX[first_tag]
-    elif action == 'reject':
-        list_id = util.TAG_TO_BOARD_REJ[first_tag]
-    else:
+    if action == 'none':
         return
+    
+    list_id = CONFIG['BOARD'][action]
 
     await boards.move_card(tag.card_id, list_id)
 
