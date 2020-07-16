@@ -19,7 +19,7 @@ def dev_action(text: str) -> str:
     if CONFIG["WORDS"]["rejected"] in text.lower():
         return 'rejected'
 
-    return 'none'
+    return False
 
 
 def extract_version(text: str):
@@ -27,7 +27,7 @@ def extract_version(text: str):
     Finds a semver telegram version from the text
     """
     try:
-        version = re.search(r'[\d+\.]+ \(\d+\)', text).group(0)
+        version = re.search(r'[\d\.]+ \(\d+\)', text).group(0)
     except AttributeError:  # if version not found
         version = None
 
@@ -40,7 +40,7 @@ def extract_first_tag(message) -> str:
     """
     return [
         text for _, text in message.get_entities_text(MessageEntityHashtag)
-    ][0]
+    ][0]  # TODO: multiple tags still have to add a label
 
 
 def extract_card_info(message) -> dict:
@@ -65,6 +65,8 @@ def extract_card_info(message) -> dict:
 
     if label:
         all_info['label_id'] = label
+    
+    return all_info
 
 
 def check_tags(message):

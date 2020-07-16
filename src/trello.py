@@ -24,7 +24,7 @@ class TrelloAPI:
         params = {}
         params.update(BASE_PARAMS)
 
-        async with self.session.post(
+        async with self.session.get(
             f"{BASE_URL}/boards/{board_id}/lists", params=params
         ) as r:
             return await r.json()
@@ -56,7 +56,7 @@ class TrelloAPI:
         params.update(BASE_PARAMS)
 
         if label_id:
-            params['idLabels'] = [label_id]
+            params['idLabels'] = label_id
 
         async with self.session.post(f"{BASE_URL}/cards", params=params) as r:
             return await r.json()
@@ -104,7 +104,7 @@ if __name__ == "__main__":
 
     async def main():
         trello = TrelloAPI()
-        print(await trello._get_labels("5ef2490c3535e3615c88e5d7"))
+        print(await trello._get_lists("5edad38f47346048774a9fcf"))
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
