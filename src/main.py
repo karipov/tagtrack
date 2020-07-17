@@ -63,25 +63,35 @@ async def album_process(event):
 
     logging.info(util.extract_card_info(msg_caption))
     response = await boards.new_card(**util.extract_card_info(msg_caption))
-
-    Tags.create(
-        chat_id=event.chat_id,
-        message_id=msg_caption.id,
-        user_id=event.sender.id,
-        card_id=response['id'],
-        short_url=response['shortUrl']
+    reply = await event.reply(
+        REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS']['new']),
+        parse_mode='HTML'
     )
+
+    # every single message in album is considered as an issue for purposes
+    # of ensuring that an admin reply to any of them triggers a dev action
+    # if appropriate.
+    data_source = list()
+    for message in event.messages:
+        data_source.append({
+            "chat_id": event.chat_id,
+            "message_id": message.id,
+            "reply_message_id": reply.id,
+            "user_id": event.sender.id,
+            "card_id": response['id'],
+            "short_url": response['shortUrl']
+        })
+    Tags.insert_many(data_source).execute()  # bulk insert for speed
 
     logging.info(
         f"{event.sender.id} uploaded a new issue {response['shortUrl']} "
         + "with Photo Album"
     )
 
-    await msg_caption.reply(REPLIES['ACCEPTED'])
-
     for message in event.messages:
+
         if not util.check_media(message):
-            return
+            continue
 
         stream = await message.download_media(file=bytes)
 
@@ -103,16 +113,19 @@ async def process(event):
         return
 
     response = await boards.new_card(**util.extract_card_info(event))
+    reply = await event.reply(
+        REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS']['new']),
+        parse_mode='HTML'
+    )
 
     Tags.create(
         chat_id=event.chat_id,
         message_id=event.id,
+        reply_message_id=reply.id,
         user_id=event.sender.id,
         card_id=response['id'],
         short_url=response['shortUrl']
     )
-
-    await event.reply(REPLIES['ACCEPTED'])
 
     logging.info(
         f"{event.sender.id} uploaded a new issue {response['shortUrl']}"
@@ -142,7 +155,8 @@ async def admin_action(event):
             Tags.chat_id == event.chat_id,
             Tags.message_id == event.reply_to_msg_id
         )
-    except Exception:
+    except Exception as e:
+        logging.warning(f"not triggered {e}")
         return  # if it's just a normal reply
 
     action = util.dev_action(event.raw_text)
@@ -154,6 +168,12 @@ async def admin_action(event):
 
     list_id = CONFIG['BOARD'][action]
 
+    await event.client.edit_message(
+        tag.chat_id,
+        tag.reply_message_id,
+        REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS'][action]),
+        parse_mode='HTML'
+    )
     await boards.move_card(tag.card_id, list_id)
 
 
