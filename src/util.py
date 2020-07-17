@@ -1,10 +1,15 @@
 import re
+import logging
 
 from telethon.tl.types import MessageEntityHashtag
 from telethon.utils import get_peer_id
 
 from config import CONFIG
-from ui import REPLIES
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 
 def dev_action(text: str) -> str:
     """
@@ -15,7 +20,7 @@ def dev_action(text: str) -> str:
 
     if CONFIG["WORDS"]["fixed"] in text.lower():
         return 'fixed'
-    
+
     if CONFIG["WORDS"]["rejected"] in text.lower():
         return 'rejected'
 
@@ -34,38 +39,47 @@ def extract_version(text: str):
     return version
 
 
-def extract_first_tag(message) -> str:
+def extract_tags(message, first=True) -> str:
     """
     Assumes the tag exists.
     """
-    return [
+    all_tags = [
         text for _, text in message.get_entities_text(MessageEntityHashtag)
-    ][0]  # TODO: multiple tags still have to add a label
+    ]
+
+    if first:
+        return all_tags[0]
+    else:
+        return all_tags
 
 
 def extract_card_info(message) -> dict:
     """
     Extracts all the info needed for creating a card from a message
     """
-    version = extract_version(message.raw_text)
-    first_tag = extract_first_tag(message)
-    text = message.raw_text.replace(first_tag, '').replace(version, '').strip()
+    all_tags = extract_tags(message, first=False)
+    title_text = message.raw_text.replace('\n', ' ').strip()
+
+    for tag in all_tags:
+        title_text = title_text.replace(tag, '').strip()
+
+    title_text = title_text[:40] + '...'
     chat_id = get_peer_id(message.chat_id, add_mark=False)
 
     all_info = {
         'list_id': CONFIG['BOARD']['new'],
-        'name': text[:40] + '...',
-        'desc': REPLIES['DESC'].format(
-            escape_markdown(text), version
-        ),
+        'name': title_text,
+        'desc': escape_markdown(message.raw_text),
         'url_source': f'https://t.me/c/{chat_id}/{message.id}'
     }
 
-    label = CONFIG['LABELS'].get(first_tag)
+    label = None
+    for tag in all_tags:
+        label = CONFIG['LABELS'].get(tag)
+        if label:
+            all_info['label_id'] = label
+            break
 
-    if label:
-        all_info['label_id'] = label
-    
     return all_info
 
 
@@ -106,3 +120,12 @@ def escape_markdown(unescaped: str) -> str:
             escaped.append(char)
 
     return ''.join(escaped)
+
+
+def extract_extension(message) -> str:
+    ext = message.file.ext
+
+    if ext == '.jpe':
+        ext = '.jpeg'
+
+    return ext
