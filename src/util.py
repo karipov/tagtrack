@@ -32,7 +32,8 @@ def extract_version(text: str):
     Finds a semver telegram version from the text
     """
     try:
-        version = re.search(r'[\d\.]+ \(\d+\)', text).group(0)
+        # searches for: "x.x.x (XXXX)" or "x.x.x XXXXX"
+        version = re.search(r'([\d\.]+ \(\d+\)|[\d\.]+ \d+)', text).group(0)
     except AttributeError:  # if version not found
         version = None
 
