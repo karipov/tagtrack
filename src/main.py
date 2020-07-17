@@ -88,7 +88,7 @@ async def album_process(event):
         await boards.attach_card(
             response['id'],
             stream,
-            str(message.id) + message.file.ext,
+            str(message.id) + util.extract_extension(message),
             message.file.mime_type
         )
 
@@ -112,6 +112,8 @@ async def process(event):
         short_url=response['shortUrl']
     )
 
+    await event.reply(REPLIES['ACCEPTED'])
+
     logging.info(
         f"{event.sender.id} uploaded a new issue {response['shortUrl']}"
     )
@@ -124,7 +126,7 @@ async def process(event):
     await boards.attach_card(
         response['id'],
         stream,
-        str(event.id) + event.file.ext,
+        str(event.id) + util.extract_extension(event),
         event.file.mime_type
     )
 
@@ -141,16 +143,15 @@ async def admin_action(event):
             Tags.message_id == event.reply_to_msg_id
         )
     except Exception:
-        return # if it's just a normal reply
+        return  # if it's just a normal reply
 
     action = util.dev_action(event.raw_text)
-    first_tag = util.extract_first_tag(await event.get_reply_message())
 
     logging.info(f"{event.sender.id} responded to issue {tag.short_url}")
 
     if not action:
         return
-    
+
     list_id = CONFIG['BOARD'][action]
 
     await boards.move_card(tag.card_id, list_id)
