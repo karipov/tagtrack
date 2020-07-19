@@ -12,6 +12,7 @@ cryptg = "*"
 aiohttp = "*"
 peewee = "*"
 colorlog = "*"
+tinydb = "*"
 
 [requires]
 python_version = "3.7"

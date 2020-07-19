@@ -1,3 +1,3 @@
-from .tag import Tags
+from .tag import Tags, Storage
 
-__all__ = ['Tags']
+__all__ = ['Tags', 'Storage']

@@ -1,12 +1,12 @@
 import logging
 from pathlib import Path
 
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, errors
 import colorlog
 
 from config import CONFIG
 from ui import REPLIES
-from models import Tags
+from models import Storage, Tags
 import trello
 import util
 
@@ -46,8 +46,10 @@ boards = trello.TrelloAPI()
 @bot.on(events.Album(chats=CONFIG['CHATS']))
 async def album_process(event):
     msg_caption = None
+    album_ids = list()
 
     for message in event.messages:
+        album_ids.append(message.id)
         if not util.check_tags(message):
             continue
         else:
@@ -68,20 +70,15 @@ async def album_process(event):
         parse_mode='HTML'
     )
 
-    # every single message in album is considered as an issue for purposes
-    # of ensuring that an admin reply to any of them triggers a dev action
-    # if appropriate.
-    data_source = list()
-    for message in event.messages:
-        data_source.append({
-            "chat_id": event.chat_id,
-            "message_id": message.id,
-            "reply_message_id": reply.id,
-            "user_id": event.sender.id,
-            "card_id": response['id'],
-            "short_url": response['shortUrl']
-        })
-    Tags.insert_many(data_source).execute()  # bulk insert for speed
+    Storage.insert({
+        "chat_id": event.chat_id,
+        "message_id": message.id,
+        "album_ids": album_ids,
+        "reply_message_id": reply.id,
+        "user_id": event.sender.id,
+        "card_id": response['id'],
+        "short_url": response['shortUrl']
+    })
 
     logging.info(
         f"{event.sender.id} uploaded a new issue {response['shortUrl']} "
@@ -118,14 +115,15 @@ async def process(event):
         parse_mode='HTML'
     )
 
-    Tags.create(
-        chat_id=event.chat_id,
-        message_id=event.id,
-        reply_message_id=reply.id,
-        user_id=event.sender.id,
-        card_id=response['id'],
-        short_url=response['shortUrl']
-    )
+    Storage.insert({
+        "chat_id": event.chat_id,
+        "message_id": event.id,
+        "album_ids": [event.id],
+        "reply_message_id": reply.id,
+        "user_id": event.sender.id,
+        "card_id": response['id'],
+        "short_url": response['shortUrl']
+    })
 
     logging.info(
         f"{event.sender.id} uploaded a new issue {response['shortUrl']}"
@@ -150,31 +148,43 @@ async def process(event):
     chats=CONFIG['CHATS']
 ))
 async def admin_action(event):
-    try:
-        tag = Tags.get(
-            Tags.chat_id == event.chat_id,
-            Tags.message_id == event.reply_to_msg_id
-        )
-    except Exception as e:
-        logging.warning(f"not triggered {e}")
-        return  # if it's just a normal reply
-
     action = util.dev_action(event.raw_text)
 
-    logging.info(f"{event.sender.id} responded to issue {tag.short_url}")
+    try:
+        tag = Storage.search(
+            (Tags.chat_id == event.chat_id)
+            & (Tags.album_ids.any([event.reply_to_msg_id]))
+        )[0]
+    except IndexError:
+        if action == 'create':
+            process(await event.get_reply_message())
+        return
 
-    if not action:
+    logging.info(f"{event.sender.id} responded to issue {tag['short_url']}")
+
+    if not action or action == 'create':
         return
 
     list_id = CONFIG['BOARD'][action]
 
-    await event.client.edit_message(
-        tag.chat_id,
-        tag.reply_message_id,
-        REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS'][action]),
-        parse_mode='HTML'
-    )
-    await boards.move_card(tag.card_id, list_id)
+    try:
+        await event.client.edit_message(
+            tag['chat_id'],
+            tag['reply_message_id'],
+            REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS'][action]),
+            parse_mode='HTML'
+        )
+    except errors.MessageNotModifiedError:
+        pass
+
+    await boards.move_card(tag['card_id'], list_id)
+
+
+@bot.on(events.MessageEdited(
+    chats=CONFIG['chats']
+))
+async def edited_process(event):
+    pass
 
 
 # RUN THE BOT ON POLLING
