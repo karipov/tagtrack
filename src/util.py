@@ -24,20 +24,30 @@ def dev_action(text: str) -> str:
     if CONFIG["WORDS"]["rejected"] in text.lower():
         return 'rejected'
 
+    if CONFIG["WORDS"]["create"] in text.lower():
+        return 'create'
+
     return False
 
 
-def extract_version(text: str):
+def extract_version(text: str) -> bool:
     """
     Finds a semver telegram version from the text
     """
     try:
         # searches for: "x.x.x (XXXX)" or "x.x.x XXXXX"
-        version = re.search(r'([\d\.]+ \(\d+\)|[\d\.]+ \d+)', text).group(0)
+        version = re.search(
+            r'([\d\.]+\s{0,}\(\d+\)|[\d\.]+\s{0,}\d+)', text
+        ).group(0)
     except AttributeError:  # if version not found
-        version = None
+        version = False
 
-    return version
+    device = any([x in text.lower() for x in [
+        'iphone', 'ipad', 'ipod', 'se'
+    ]])
+    software = 'ios' in text.lower()
+
+    return bool(version and device and software)
 
 
 def extract_tags(message, first=True) -> str:
