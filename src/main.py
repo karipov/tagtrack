@@ -43,7 +43,10 @@ bot = TelegramClient(
 boards = trello.TrelloAPI()
 
 
-@bot.on(events.Album(chats=CONFIG['CHATS']))
+# USER MESSAGES AND ERROR REPORTS (SINGLE MESSAGE)
+@bot.on(events.Album(
+    chats=CONFIG['CHATS']  # tag checking occurs in-function
+))
 async def album_process(event):
     msg_caption = None
     album_ids = list()
@@ -59,8 +62,18 @@ async def album_process(event):
     if not msg_caption:
         return
 
+    storage_info = {
+        "chat_id": event.chat_id,
+        "message_id": msg_caption.id,
+        "album_ids": album_ids,
+        "user_id": event.sender.id,
+        "valid": False
+    }
+
     if not util.extract_version(msg_caption.raw_text):
-        await event.reply(REPLIES['INCLUDE_VER'])
+        reply = await event.reply(REPLIES['INCLUDE_VER'])
+        storage_info['reply_message_id'] = reply.id
+        Storage.insert(storage_info)
         return
 
     logging.info(util.extract_card_info(msg_caption))
@@ -70,15 +83,12 @@ async def album_process(event):
         parse_mode='HTML'
     )
 
-    Storage.insert({
-        "chat_id": event.chat_id,
-        "message_id": message.id,
-        "album_ids": album_ids,
-        "reply_message_id": reply.id,
-        "user_id": event.sender.id,
-        "card_id": response['id'],
-        "short_url": response['shortUrl']
-    })
+    storage_info['reply_message_id'] = reply.id
+    storage_info['card_id'] = response['id']
+    storage_info['short_url'] = response['shortUrl']
+    storage_info['valid'] = True
+
+    Storage.insert(storage_info)
 
     logging.info(
         f"{event.sender.id} uploaded a new issue {response['shortUrl']} "
@@ -100,13 +110,24 @@ async def album_process(event):
         )
 
 
+# USER MESSAGES AND ERROR REPORTS (SINGLE MESSAGE)
 @bot.on(events.NewMessage(
     func=lambda e: util.check_tags(e) and not e.grouped_id,  # disregard album
     chats=CONFIG['CHATS']
 ))
 async def process(event):
+    storage_info = {
+        "chat_id": event.chat_id,
+        "message_id": event.id,
+        "album_ids": [event.id],
+        "user_id": event.sender.id,
+        "valid": False
+    }
+
     if not util.extract_version(event.raw_text):
-        await event.reply(REPLIES['INCLUDE_VER'])
+        reply = await event.reply(REPLIES['INCLUDE_VER'])
+        storage_info['reply_message_id'] = reply.id
+        Storage.insert(storage_info)
         return
 
     response = await boards.new_card(**util.extract_card_info(event))
@@ -115,15 +136,12 @@ async def process(event):
         parse_mode='HTML'
     )
 
-    Storage.insert({
-        "chat_id": event.chat_id,
-        "message_id": event.id,
-        "album_ids": [event.id],
-        "reply_message_id": reply.id,
-        "user_id": event.sender.id,
-        "card_id": response['id'],
-        "short_url": response['shortUrl']
-    })
+    storage_info['reply_message_id'] = reply.id
+    storage_info['card_id'] = response['id']
+    storage_info['short_url'] = response['shortUrl']
+    storage_info['valid'] = True
+
+    Storage.insert(storage_info)
 
     logging.info(
         f"{event.sender.id} uploaded a new issue {response['shortUrl']}"
@@ -142,6 +160,7 @@ async def process(event):
     )
 
 
+# ADMIN ACTIONS AND REPLIES
 @bot.on(events.NewMessage(
     func=lambda e: e.is_reply,
     from_users=CONFIG['ADMINS'],
@@ -181,10 +200,59 @@ async def admin_action(event):
 
 
 @bot.on(events.MessageEdited(
-    chats=CONFIG['chats']
+    # only care about edited messages with neccessary tags and text
+    func=lambda e: util.check_tags(e),
+    chats=CONFIG['CHATS']
 ))
 async def edited_process(event):
-    pass
+    try:
+        tag = Storage.search(
+            (Tags.chat_id == event.chat_id)
+            & (Tags.message_id == event.id)
+        )[0]
+    except IndexError:
+        # if the proper tag wasn't used:
+        # if util.is_album(event):
+        #     album = await util.build_album(event)
+        #     logging.info("built album")
+        #     await album_process(album)
+        # else:
+        await process(event)
+        return
+
+    if tag['valid']:
+        # everything ok we don't touch it...
+        # https://t.me/c/1168424726/192
+        return
+
+    if not util.extract_version(event.raw_text):
+        # still doesn't have necessary stuff, don't do anything
+        return
+
+    response = await boards.new_card(**util.extract_card_info(event))
+    await event.client.edit_message(
+        tag['chat_id'],
+        tag['reply_message_id'],
+        REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS']['new']),
+        parse_mode='HTML'
+    )
+
+    # event though message fetching is impossible
+    # we at least upload and attach this media.
+    if util.check_media(event):
+        stream = await event.download_media(file=bytes)
+        await boards.attach_card(
+            response['id'],
+            stream,
+            str(event.id) + util.extract_extension(event),
+            event.file.mime_typw
+        )
+
+    Storage.update({
+        'card_id': response['id'],
+        'short_url': response['shortUrl'],
+        'valid': True
+    }, doc_ids=[tag.doc_id])
 
 
 # RUN THE BOT ON POLLING
