@@ -25,13 +25,13 @@
         "bugs": "...",
         "visual": "...",
         "completed": "...",
-        "rejected": "..."
+        "reject": "..."
     },
     "FRQ": {
         "_id": "...<Board IDs>",
         // following are list name and list ID pairs
         "requests": "...",
         "completed": "...",
-        "rejected": "..."
+        "reject": "..."
     }
 }

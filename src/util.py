@@ -21,11 +21,14 @@ def dev_action(text: str) -> str:
     if CONFIG["WORDS"]["fixed"] in text.lower():
         return 'fixed'
 
-    if CONFIG["WORDS"]["rejected"] in text.lower():
-        return 'rejected'
+    if CONFIG["WORDS"]["reject"] in text.lower():
+        return 'reject'
 
     if CONFIG["WORDS"]["create"] in text.lower():
         return 'create'
+
+    if CONFIG["WORDS"]["delete"] in text.lower():
+        return 'delete'
 
     return False
 
@@ -45,7 +48,10 @@ def extract_version(text: str) -> bool:
     device = any([x in text.lower() for x in [
         'iphone', 'ipad', 'ipod', 'se'
     ]])
-    software = 'ios' in text.lower()
+    software = any([
+        'ios' in text.lower(),
+        re.search(r'(?:[8-9]|1[0-5]).[0-7]', text)  # ios version perhaps
+    ])
 
     return bool(version and device and software)
 
@@ -140,3 +146,33 @@ def extract_extension(message) -> str:
         ext = '.jpeg'
 
     return ext
+
+
+# BOT HTTP API IS RESTRICTED FOR THIS TO MATTER
+
+# def is_album(event) -> str:
+#     """
+#     Is event part of an album?
+#     """
+#     if event.grouped_id:
+#         return True
+
+#     return False
+
+
+# async def build_album(event) -> list:
+#     """
+#     Trie to builds an album from a single message event
+#     """
+#     AFTER, BEFORE = event.id + 7, event.id - 7
+
+#     messages = await event.client.get_messages(
+#         event.chat_id, min_id=BEFORE, max_id=AFTER
+#     )
+#     album_messages = [x for x in messages if x.grouped_id]
+
+#     # pseudo album class
+#     album = event
+#     setattr(album, 'messages', album_messages)
+
+#     return album
