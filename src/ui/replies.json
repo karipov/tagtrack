@@ -2,7 +2,7 @@
     "DESC": "{0}\n\n`Version: {1}`",
     "ACCEPTED": "Thanks, #{0} issue status: <pre>{1}</pre>.",
     "INCLUDE_VER": "Please include full app and device information in your report!",
-    "COMMENT_TRELLO": "[{0}](tg://user?id={1}): {2}",
+    "COMMENT_TRELLO": "[{0}]({1}): {2}",
 
     "ISSUE_STATUS": {
         "new": "Accepted",

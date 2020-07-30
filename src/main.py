@@ -183,7 +183,13 @@ async def admin_action(event):
         )[0]
     except IndexError:
         if action == 'create':
-            await process(await event.get_reply_message())
+            try:
+                await process(await event.get_reply_message())
+            except Exception:  # not enough information for example
+                logging.warn(
+                    "Not enough information to create card for message "
+                    + util.extract_link(await event.get_reply_message())
+                )
         return
 
     logging.info(f"{event.sender.id} responded to issue {tag['short_url']}")
@@ -219,7 +225,7 @@ async def admin_action(event):
         await boards.comment_card(
             REPLIES['COMMENT_TRELLO'].format(
                 event.sender.first_name,
-                event.from_id,
+                util.extract_link(event),
                 event.raw_text
             ),
             tag['card_id']
@@ -264,7 +270,7 @@ async def edited_process(event):
         tag['chat_id'],
         tag['reply_message_id'],
         REPLIES['ACCEPTED'].format(
-            tag['short_url'].replace('https://trello.com/c/', ''),
+            response['shortUrl'].replace('https://trello.com/c/', ''),
             REPLIES['ISSUE_STATUS']['new']
         ),
         parse_mode='HTML'
@@ -278,7 +284,7 @@ async def edited_process(event):
             response['id'],
             stream,
             str(event.id) + util.extract_extension(event),
-            event.file.mime_typw
+            event.file.mime_type
         )
 
     Storage.update({

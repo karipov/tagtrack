@@ -70,6 +70,14 @@ def extract_tags(message, first=True) -> str:
         return all_tags
 
 
+def extract_link(message) -> str:
+    """
+    Generates a link for a message
+    """
+    chat_id = get_peer_id(message.chat_id, add_mark=False)
+    return f'https://t.me/c/{chat_id}/{message.id}'
+
+
 def extract_card_info(message) -> dict:
     """
     Extracts all the info needed for creating a card from a message
@@ -81,13 +89,12 @@ def extract_card_info(message) -> dict:
         title_text = title_text.replace(tag, '').strip()
 
     title_text = title_text[:40] + '...'
-    chat_id = get_peer_id(message.chat_id, add_mark=False)
 
     all_info = {
         'list_id': CONFIG['BOARD']['new'],
         'name': title_text,
         'desc': escape_markdown(message.raw_text),
-        'url_source': f'https://t.me/c/{chat_id}/{message.id}'
+        'url_source': extract_link(message)
     }
 
     label = None
