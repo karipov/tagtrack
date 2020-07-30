@@ -1,12 +1,12 @@
 {
     "DESC": "{0}\n\n`Version: {1}`",
-    "ACCEPTED": "Thanks, current issue status: <code>{}</code>.",
+    "ACCEPTED": "Thanks, #{0} issue status: <pre>{1}</pre>.",
     "INCLUDE_VER": "Please include full app and device information in your report!",
 
     "ISSUE_STATUS": {
         "new": "Accepted",
         "reported": "Reviewed & Reported",
         "fixed": "Fixed",
-        "rejected": "Rejected"
+        "reject": "Rejected"
     }
 }

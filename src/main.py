@@ -79,7 +79,10 @@ async def album_process(event):
     logging.info(util.extract_card_info(msg_caption))
     response = await boards.new_card(**util.extract_card_info(msg_caption))
     reply = await event.reply(
-        REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS']['new']),
+        REPLIES['ACCEPTED'].format(
+            response['shortUrl'].replace('https://trello.com/c/', ''),
+            REPLIES['ISSUE_STATUS']['new']
+        ),
         parse_mode='HTML'
     )
 
@@ -132,7 +135,10 @@ async def process(event):
 
     response = await boards.new_card(**util.extract_card_info(event))
     reply = await event.reply(
-        REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS']['new']),
+        REPLIES['ACCEPTED'].format(
+            response['shortUrl'].replace('https://trello.com/c/', ''),
+            REPLIES['ISSUE_STATUS']['new']
+        ),
         parse_mode='HTML'
     )
 
@@ -173,15 +179,24 @@ async def admin_action(event):
         tag = Storage.search(
             (Tags.chat_id == event.chat_id)
             & (Tags.album_ids.any([event.reply_to_msg_id]))
+            & (Tags.valid == True)  # noqa: E712
         )[0]
     except IndexError:
         if action == 'create':
-            process(await event.get_reply_message())
+            await process(await event.get_reply_message())
         return
 
     logging.info(f"{event.sender.id} responded to issue {tag['short_url']}")
 
     if not action or action == 'create':
+        return
+
+    if action == 'delete':
+        await boards.delete_card(card_id=tag['card_id'])
+        await event.client.delete_messages(
+            event.chat_id, tag['reply_message_id']
+        )
+        Storage.remove(doc_ids=[tag.doc_id])
         return
 
     list_id = CONFIG['BOARD'][action]
@@ -190,7 +205,10 @@ async def admin_action(event):
         await event.client.edit_message(
             tag['chat_id'],
             tag['reply_message_id'],
-            REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS'][action]),
+            REPLIES['ACCEPTED'].format(
+                tag['short_url'].replace('https://trello.com/c/', ''),
+                REPLIES['ISSUE_STATUS'][action]
+            ),
             parse_mode='HTML'
         )
     except errors.MessageNotModifiedError:
@@ -199,6 +217,7 @@ async def admin_action(event):
     await boards.move_card(tag['card_id'], list_id)
 
 
+# EDITED USER MESSAGES
 @bot.on(events.MessageEdited(
     # only care about edited messages with neccessary tags and text
     func=lambda e: util.check_tags(e),
@@ -233,7 +252,10 @@ async def edited_process(event):
     await event.client.edit_message(
         tag['chat_id'],
         tag['reply_message_id'],
-        REPLIES['ACCEPTED'].format(REPLIES['ISSUE_STATUS']['new']),
+        REPLIES['ACCEPTED'].format(
+            tag['short_url'].replace('https://trello.com/c/', ''),
+            REPLIES['ISSUE_STATUS']['new']
+        ),
         parse_mode='HTML'
     )
 
