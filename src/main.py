@@ -214,6 +214,17 @@ async def admin_action(event):
     except errors.MessageNotModifiedError:
         pass
 
+    # if the command consists of a payload
+    if event.raw_text.replace('#' + action, '').strip():
+        await boards.comment_card(
+            REPLIES['COMMENT_TRELLO'].format(
+                event.sender.first_name,
+                event.from_id,
+                event.raw_text
+            ),
+            tag['card_id']
+        )
+
     await boards.move_card(tag['card_id'], list_id)
 
 

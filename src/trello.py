@@ -112,6 +112,17 @@ class TrelloAPI:
             params=BASE_PARAMS
         )
 
+    async def comment_card(self, text: str, card_id: str):
+        params = {
+            'text': text
+        }
+        params.update(BASE_PARAMS)
+
+        await self.session.post(
+            f"{BASE_URL}/cards/{card_id}/actions/comments",
+            params=params
+        )
+
 
 if __name__ == "__main__":
     from pprint import pprint as print
