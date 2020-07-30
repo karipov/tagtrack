@@ -13,7 +13,7 @@ BASE_PARAMS = {
 class TrelloAPI:
     def __init__(self):
         self.session = aiohttp.ClientSession()
-    
+
     async def _get_boards(self):
         async with self.session.get(
            f"{BASE_URL}/members/me/boards", params=BASE_PARAMS
@@ -28,7 +28,7 @@ class TrelloAPI:
             f"{BASE_URL}/boards/{board_id}/lists", params=params
         ) as r:
             return await r.json()
-    
+
     async def _get_labels(self, board_id: str) -> dict:
         async with self.session.get(
             f"{BASE_URL}/boards/{board_id}/labels", params=BASE_PARAMS
@@ -87,7 +87,7 @@ class TrelloAPI:
             data=data,
             headers=headers
         )
-    
+
     async def label_card(self, card_id: str, label_id: str):
         params = {'value': label_id}
         params.update(BASE_PARAMS)
@@ -95,6 +95,21 @@ class TrelloAPI:
         await self.session.post(
             f"{BASE_URL}/cards/{card_id}/idLabels",
             params=params
+        )
+
+    async def archive_card(self, card_id: str):
+        params = {'closed': True}
+        params.update(BASE_PARAMS)
+
+        await self.session.put(
+            f"{BASE_URL}/cards/{card_id}",
+            params=params
+        )
+
+    async def delete_card(self, card_id: str):
+        await self.session.delete(
+            f"{BASE_URL}/cards/{card_id}",
+            params=BASE_PARAMS
         )
 
 
