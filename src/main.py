@@ -12,6 +12,7 @@ import util
 
 
 # LOGGING SETUP
+logging.getLogger('telethon').setLevel(logging.WARNING)  # shut up telethon
 logger = logging.getLogger()  # getting the root logger
 logger.setLevel(logging.DEBUG)
 formatter = colorlog.ColoredFormatter(
@@ -49,10 +50,10 @@ boards = trello.TrelloAPI()
 ))
 async def album_process(event):
     message_with_caption = None
-    album_ids = list()
+    associated_ids = list()
 
     for message in event.messages:
-        album_ids.append(message.id)
+        associated_ids.append(message.id)
         if not util.check_tags(message):
             continue
         else:
@@ -65,7 +66,7 @@ async def album_process(event):
     storage_info = {
         "chat_id": event.chat_id,
         "message_id": message_with_caption.id,
-        "album_ids": album_ids,
+        "associated_ids": associated_ids,
         "user_id": event.sender.id,
         "valid": False
     }
@@ -74,12 +75,17 @@ async def album_process(event):
 
         logging.info(
             f"User {event.sender.id}: "
-            "missing version info to create card for Photo Album"
-            + util.extract_link(event)
+            "missing version info to create card for Album message "
+            + util.extract_link(message_with_caption)
         )
-
+        # FIXME: an edited album message does not include the "not enough
+        # information" message_id in associated_ids, thereby causing commands
+        # replying to the bot reply to not function
         reply = await event.reply(REPLIES['INCLUDE_VER'])
-        storage_info['reply_message_id'] = reply.id
+        storage_info.update({
+            'reply_message_id': reply.id,
+            'associated_ids': associated_ids + [reply.id]
+        })
         Storage.insert(storage_info)
         return
 
@@ -99,13 +105,14 @@ async def album_process(event):
         'reply_message_id': reply.id,
         'card_id': response['id'],
         'short_url': response['shortUrl'],
+        'associated_ids': associated_ids + [reply.id],
         'valid': True
     })
     Storage.insert(storage_info)
 
     logger.info(
         f"User {event.sender.id} triggered a new issue {response['shortUrl']} "
-        + "with Photo Album"
+        + "with Album message"
     )
 
     for message in event.messages:
@@ -132,7 +139,7 @@ async def process(event):
     storage_info = {
         "chat_id": event.chat_id,
         "message_id": event.id,
-        "album_ids": [event.id],
+        "associated_ids": [event.id],
         "user_id": event.sender.id,
         "valid": False
     }
@@ -146,7 +153,10 @@ async def process(event):
         )
 
         reply = await event.reply(REPLIES['INCLUDE_VER'])
-        storage_info['reply_message_id'] = reply.id
+        storage_info.update({
+            'reply_message_id': reply.id,
+            'associated_ids': [event.id, reply.id]
+        })
         Storage.insert(storage_info)
         return
 
@@ -163,6 +173,7 @@ async def process(event):
         'reply_message_id': reply.id,
         'card_id': response['id'],
         'short_url': response['shortUrl'],
+        'associated_ids': [event.id, reply.id],
         'valid': True
     })
     Storage.insert(storage_info)
@@ -196,7 +207,7 @@ async def admin_action(event):
     try:
         tag = Storage.search(
             (Tags.chat_id == event.chat_id)
-            & (Tags.album_ids.any([event.reply_to_msg_id]))
+            & (Tags.associated_ids.any([event.reply_to_msg_id]))
             & (Tags.valid == True)  # noqa: E712
         )[0]
     except IndexError:
