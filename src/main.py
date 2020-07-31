@@ -12,7 +12,7 @@ import util
 
 
 # LOGGING SETUP
-logger = logging.getLogger()
+logger = logging.getLogger()  # getting the root logger
 logger.setLevel(logging.DEBUG)
 formatter = colorlog.ColoredFormatter(
     '%(log_color)s%(asctime)s - %(name)s - %(message)s'
@@ -48,7 +48,7 @@ boards = trello.TrelloAPI()
     chats=CONFIG['CHATS']  # tag checking occurs in-function
 ))
 async def album_process(event):
-    msg_caption = None
+    message_with_caption = None
     album_ids = list()
 
     for message in event.messages:
@@ -56,28 +56,37 @@ async def album_process(event):
         if not util.check_tags(message):
             continue
         else:
-            msg_caption = message
+            message_with_caption = message
             break
 
-    if not msg_caption:
+    if not message_with_caption:
         return
 
     storage_info = {
         "chat_id": event.chat_id,
-        "message_id": msg_caption.id,
+        "message_id": message_with_caption.id,
         "album_ids": album_ids,
         "user_id": event.sender.id,
         "valid": False
     }
 
-    if not util.extract_version(msg_caption.raw_text):
+    if not util.extract_version(message_with_caption.raw_text):
+
+        logging.info(
+            f"User {event.sender.id}: "
+            "missing version info to create card for Photo Album"
+            + util.extract_link(event)
+        )
+
         reply = await event.reply(REPLIES['INCLUDE_VER'])
         storage_info['reply_message_id'] = reply.id
         Storage.insert(storage_info)
         return
 
-    logging.info(util.extract_card_info(msg_caption))
-    response = await boards.new_card(**util.extract_card_info(msg_caption))
+    response = await boards.new_card(**util.extract_card_info(
+        message_with_caption
+    ))
+
     reply = await event.reply(
         REPLIES['ACCEPTED'].format(
             response['shortUrl'].replace('https://trello.com/c/', ''),
@@ -86,15 +95,16 @@ async def album_process(event):
         parse_mode='HTML'
     )
 
-    storage_info['reply_message_id'] = reply.id
-    storage_info['card_id'] = response['id']
-    storage_info['short_url'] = response['shortUrl']
-    storage_info['valid'] = True
-
+    storage_info.update({
+        'reply_message_id': reply.id,
+        'card_id': response['id'],
+        'short_url': response['shortUrl'],
+        'valid': True
+    })
     Storage.insert(storage_info)
 
-    logging.info(
-        f"{event.sender.id} uploaded a new issue {response['shortUrl']} "
+    logger.info(
+        f"User {event.sender.id} triggered a new issue {response['shortUrl']} "
         + "with Photo Album"
     )
 
@@ -128,6 +138,13 @@ async def process(event):
     }
 
     if not util.extract_version(event.raw_text):
+
+        logging.info(
+            f"User {event.sender.id}: "
+            "missing version info to create card for message "
+            + util.extract_link(event)
+        )
+
         reply = await event.reply(REPLIES['INCLUDE_VER'])
         storage_info['reply_message_id'] = reply.id
         Storage.insert(storage_info)
@@ -142,15 +159,16 @@ async def process(event):
         parse_mode='HTML'
     )
 
-    storage_info['reply_message_id'] = reply.id
-    storage_info['card_id'] = response['id']
-    storage_info['short_url'] = response['shortUrl']
-    storage_info['valid'] = True
-
+    storage_info.update({
+        'reply_message_id': reply.id,
+        'card_id': response['id'],
+        'short_url': response['shortUrl'],
+        'valid': True
+    })
     Storage.insert(storage_info)
 
-    logging.info(
-        f"{event.sender.id} uploaded a new issue {response['shortUrl']}"
+    logger.info(
+        f"User {event.sender.id} uploaded a new issue {response['shortUrl']}"
     )
 
     if not util.check_media(event):
@@ -183,16 +201,29 @@ async def admin_action(event):
         )[0]
     except IndexError:
         if action == 'create':
+            candidate_message = await event.get_reply_message()
+            link_to_candidate_message = util.extract_link(candidate_message)
+
             try:
-                await process(await event.get_reply_message())
-            except Exception:  # not enough information for example
+                logger.info(
+                    f"Admin {event.sender.id} manually triggered card "
+                    + "creation for message "
+                    + link_to_candidate_message
+                )
+
+                await process(candidate_message)
+            except Exception:
                 logging.warn(
-                    "Not enough information to create card for message "
-                    + util.extract_link(await event.get_reply_message())
+                    f"Admin {event.sender.id}: "
+                    + "not enough information to create card for message "
+                    + link_to_candidate_message
                 )
         return
 
-    logging.info(f"{event.sender.id} responded to issue {tag['short_url']}")
+    logger.info(
+        f"Admin {event.sender.id} responded to issue {tag['short_url']} "
+        + f"with action: {action}"
+    )
 
     if not action or action == 'create':
         return
@@ -241,6 +272,9 @@ async def admin_action(event):
     chats=CONFIG['CHATS']
 ))
 async def edited_process(event):
+    link_to_event = util.extract_link(event)
+    base_log = f"User {event.sender.id} edited message {link_to_event} "
+
     try:
         tag = Storage.search(
             (Tags.chat_id == event.chat_id)
@@ -253,16 +287,24 @@ async def edited_process(event):
         #     logging.info("built album")
         #     await album_process(album)
         # else:
+        logger.info(
+            f"{base_log} triggered card creation for message {link_to_event}"
+        )
         await process(event)
         return
 
     if tag['valid']:
         # everything ok we don't touch it...
         # https://t.me/c/1168424726/192
+        logger.info(
+            f"{base_log} which is already a valid issue {tag['short_url']}"
+        )
         return
 
     if not util.extract_version(event.raw_text):
-        # still doesn't have necessary stuff, don't do anything
+        logger.info(
+            f"{base_log} which is still missing version info."
+        )
         return
 
     response = await boards.new_card(**util.extract_card_info(event))
@@ -274,6 +316,11 @@ async def edited_process(event):
             REPLIES['ISSUE_STATUS']['new']
         ),
         parse_mode='HTML'
+    )
+
+    logger.info(
+        f"{base_log} which passed all validation and created a trello card "
+        + response['shortUrl']
     )
 
     # event though message fetching is impossible
