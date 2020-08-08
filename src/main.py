@@ -78,9 +78,6 @@ async def album_process(event):
             "missing version info to create card for Album message "
             + util.extract_link(message_with_caption)
         )
-        # FIXME: an edited album message does not include the "not enough
-        # information" message_id in associated_ids, thereby causing commands
-        # replying to the bot reply to not function
         reply = await event.reply(REPLIES['INCLUDE_VER'])
         storage_info.update({
             'reply_message_id': reply.id,

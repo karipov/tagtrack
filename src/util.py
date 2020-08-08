@@ -40,7 +40,7 @@ def extract_version(text: str) -> bool:
     try:
         # searches for: "x.x.x (XXXX)" or "x.x.x XXXXX"
         version = re.search(
-            r'([\d\.]+\s{0,}\(\d+\)|[\d\.]+\s{0,}\d+)', text
+            r'([\d\.]+\s{0,}\(\d+\)|[\d\.]+\s{1,}\d+)', text
         ).group(0)
     except AttributeError:  # if version not found
         version = False
