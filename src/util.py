@@ -97,12 +97,17 @@ def extract_card_info(message) -> dict:
         'url_source': extract_link(message)
     }
 
-    label = None
+    labels = ''
     for tag in all_tags:
         label = CONFIG['LABELS'].get(tag)
         if label:
-            all_info['label_id'] = label
-            break
+            labels += label + ','
+
+    if labels:
+        # hacky way to get comma-separated list
+        all_info['label_id'] = labels[:-1]
+
+    logger.info(all_info)
 
     return all_info
 
